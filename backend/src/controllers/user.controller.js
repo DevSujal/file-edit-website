@@ -1,6 +1,6 @@
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiError from "../utils/ApiError.js";
-import { User } from "../models/user.model";
+import { User } from "../models/user.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
 const userController = {};
 
@@ -17,7 +17,7 @@ const generateAccessRefreshToken = async (userId) => {
   
       user.refreshToken = refreshToken;
   
-      user.save({
+      await user.save({
         validateBeforeSave: false,
       });
   
@@ -53,13 +53,13 @@ userController.registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(409, "user with email or username already exist");
   }
 
-  const user = User.create({
+  const user = await User.create({
     userName,
     email,
     password,
   });
 
-  const createdUser = User.findById(user._id).select("-refreshToken -password");
+  const createdUser = await User.findById(user._id).select("-refreshToken -password");
 
   if (!createdUser) {
     throw new ApiError(500, "something went wrong");
@@ -67,7 +67,7 @@ userController.registerUser = asyncHandler(async (req, res) => {
 
   res
     .status(201)
-    .json(ApiResponse(200, createdUser, "User Registered Successfully"));
+    .json(new ApiResponse(200, createdUser, "User Registered Successfully"));
 });
 
 userController.loginUser = asyncHandler(async (req, res) => {
@@ -106,7 +106,7 @@ userController.loginUser = asyncHandler(async (req, res) => {
     .cookie("accessToken", accessToken, options)
     .cookie("refreshToken", refreshToken, options)
     .json(
-      ApiResponse(
+      new ApiResponse(
         200,
         { user: loggedInUser, accessToken, refreshToken },
         "user logged in successfully"
