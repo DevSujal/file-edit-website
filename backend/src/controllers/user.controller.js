@@ -97,8 +97,7 @@ userController.loginUser = asyncHandler(async (req, res) => {
   );
 
   const loggedInUser = await User.findById(user._id).select(
-    "-password",
-    "-refreshToken"
+    "-password -refreshToken"
   );
 
   res
@@ -113,6 +112,33 @@ userController.loginUser = asyncHandler(async (req, res) => {
       )
     );
 });
+
+userController.logoutUser = asyncHandler(async(req, res) => {
+  const user = await User.findByIdAndUpdate(req.user._id,
+    {
+      $unset : {
+        refreshToken : 1
+      }
+    },
+    {
+      new : true
+    }
+  )
+
+  if(!user){
+    throw new ApiError(500, "something went wrong while logout")
+  }
+
+  res.status(200)
+  .clearCookie("accessToken", options)
+  .clearCookie("refreshToken", options)
+  .json(new ApiResponse(200, {}, "User logged out successfully"))
+})
+
+userController.refreshAccessToken = asyncHandler(async(req, res) => {
+})
+
+
 
 
 
