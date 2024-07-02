@@ -2,6 +2,8 @@ import asyncHandler from "../utils/asyncHandler.js";
 import ApiError from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
+import { conf } from "../conf.js";
+import jwt from "jsonwebtoken";
 const userController = {};
 
 const options = {
@@ -10,25 +12,25 @@ const options = {
 };
 
 const generateAccessRefreshToken = async (userId) => {
-    try {
-      const user = await User.findById(userId);
-      const refreshToken = user.generateRefreshToken();
-      const accessToken = user.generateAccessToken();
-  
-      user.refreshToken = refreshToken;
-  
-      await user.save({
-        validateBeforeSave: false,
-      });
-  
-      return { refreshToken, accessToken };
-    } catch (error) {
-      throw new ApiError(
-        500,
-        "something went wrong while generating access and refresh token"
-      );
-    }
-  };
+  try {
+    const user = await User.findById(userId);
+    const refreshToken = user.generateRefreshToken();
+    const accessToken = user.generateAccessToken();
+
+    user.refreshToken = refreshToken;
+
+    await user.save({
+      validateBeforeSave: false,
+    });
+
+    return { refreshToken, accessToken };
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "something went wrong while generating access and refresh token"
+    );
+  }
+};
 
 userController.registerUser = asyncHandler(async (req, res) => {
   const { userName, email, password } = req.body;
@@ -59,7 +61,9 @@ userController.registerUser = asyncHandler(async (req, res) => {
     password,
   });
 
-  const createdUser = await User.findById(user._id).select("-refreshToken -password");
+  const createdUser = await User.findById(user._id).select(
+    "-refreshToken -password"
+  );
 
   if (!createdUser) {
     throw new ApiError(500, "something went wrong");
@@ -113,33 +117,113 @@ userController.loginUser = asyncHandler(async (req, res) => {
     );
 });
 
-userController.logoutUser = asyncHandler(async(req, res) => {
-  const user = await User.findByIdAndUpdate(req.user._id,
+userController.logoutUser = asyncHandler(async (req, res) => {
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
     {
-      $unset : {
-        refreshToken : 1
-      }
+      $unset: {
+        refreshToken: 1,
+      },
     },
     {
-      new : true
+      new: true,
     }
-  )
+  );
 
-  if(!user){
-    throw new ApiError(500, "something went wrong while logout")
+  if (!user) {
+    throw new ApiError(500, "something went wrong while logout");
   }
 
-  res.status(200)
-  .clearCookie("accessToken", options)
-  .clearCookie("refreshToken", options)
-  .json(new ApiResponse(200, {}, "User logged out successfully"))
-})
+  res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User logged out successfully"));
+});
 
-userController.refreshAccessToken = asyncHandler(async(req, res) => {
-})
+userController.refreshAccessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    req.cookies.refreshToken || req.body.refreshToken;
 
+  if (!incomingRefreshToken) {
+    throw new ApiError(401, "unauthorized requiest");
+  }
 
+  try {
+    const decodedRefreshToken = jwt.verify(
+      incomingRefreshToken,
+      conf.refreshTokenSecret
+    );
 
+    const user = await User.findById(decodedRefreshToken._id);
 
+    if (!user) {
+      throw new ApiError(404, "Invalid Refresh Token");
+    }
+
+    if (incomingRefreshToken !== user.refreshToken) {
+      throw new ApiError(401, "Invalid Refresh Token");
+    }
+
+    const { accessToken, refreshToken } = await generateAccessRefreshToken(
+      user._id
+    );
+
+    const loggedInUser = await User.findById(user._id).select(
+      "-password -refreshToken"
+    );
+
+    res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", refreshToken, options)
+      .json(
+        new ApiResponse(
+          200,
+          { user: loggedInUser, accessToken, refreshToken },
+          "User logged in successfully"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message ||
+        "something went wrong while validating the refresh token"
+    );
+  }
+});
+
+userController.updateUserProfile = asyncHandler(async (req, res) => {
+  const { userName, email } = req.body;
+
+  if (!userName && !email) {
+    throw new ApiError(400, "userName or email is required to change");
+  }
+
+  if (userName.trim() === "" && email.trim() === "") {
+    throw new ApiError(400, "userName or email is required to change");
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        userName: userName ? userName : req.user.userName,
+        email: email ? email : req.user.email,
+      },
+    },
+    {
+      new: true,
+    }
+  ).select("-password -refreshToken");
+
+  if (!user) {
+    throw new ApiError(500, "something went wrong while updating user profile");
+  }
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, user, "User profile updated successfully"));
+});
 
 export default userController;
