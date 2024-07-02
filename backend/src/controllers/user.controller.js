@@ -80,8 +80,9 @@ userController.loginUser = asyncHandler(async (req, res) => {
   if (!userName && !email) {
     throw new ApiError(400, "userName or email is required");
   }
-  if (userName.trim() === "" && email.trim() === "") {
-    throw new ApiError(400, "userName or email is required");
+
+  if(!password){
+    throw new ApiError(400, "password is required");
   }
 
   const user = await User.findOne({
@@ -200,10 +201,6 @@ userController.updateUserProfile = asyncHandler(async (req, res) => {
     throw new ApiError(400, "userName or email is required to change");
   }
 
-  if (userName.trim() === "" && email.trim() === "") {
-    throw new ApiError(400, "userName or email is required to change");
-  }
-
   const user = await User.findByIdAndUpdate(
     req.user._id,
     {
@@ -224,6 +221,31 @@ userController.updateUserProfile = asyncHandler(async (req, res) => {
   res
     .status(200)
     .json(new ApiResponse(200, user, "User profile updated successfully"));
+});
+
+userController.updatePassword = asyncHandler(async (req, res) => {
+  const { password } = req.body;
+
+  if(!password) {
+    throw new ApiError(400, "password is required");
+  }
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: { password },
+    },
+    {
+      new: true,
+    }
+  ).select("-password -refreshToken");
+
+  if (!user) {
+    throw new ApiError(500, "something went wrong while updating password");
+  }
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, user, "password updated successfully"));
 });
 
 export default userController;
