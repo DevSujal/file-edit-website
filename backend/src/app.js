@@ -30,8 +30,10 @@ app.use(cookieParser());
 // routes
 
 import userRouter from "./routes/user.router.js";
+import fileRouter from "./routes/file.router.js";
 
 app.use("/api/v1/users", userRouter)
 // http://localhost:8000/api/v1/users/register
+app.use("/api/v1/files", fileRouter)
 
 export default app;
