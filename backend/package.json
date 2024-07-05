@@ -20,9 +20,15 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "imagemin": "^9.0.0",
+    "imagemin-mozjpeg": "^10.0.0",
+    "imagemin-pngquant": "^10.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.4.4",
     "multer": "^1.4.5-lts.1",
-    "nodemon": "^3.1.4"
+    "nodemon": "^3.1.4",
+    "pdf-lib": "^1.17.1",
+    "pdf-poppler": "^0.2.1",
+    "sharp": "^0.33.4"
   }
 }
