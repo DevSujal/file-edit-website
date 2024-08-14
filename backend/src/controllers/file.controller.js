@@ -91,6 +91,29 @@ async function createPdfFromImages(imagePaths, outputPdfPath) {
   fs.writeFileSync(outputPdfPath, pdfBytes);
 }
 
+
+async function removeBackgroundColor(inputPath, outputPath, backgroundColor) {
+  const tempPath = path.resolve('public/temp/temp.png');
+  await convertType(inputPath, tempPath);
+
+  // Use Jimp to process the image and remove the background
+  const image = await Jimp.read(tempPath);
+  const colorToRemove = Jimp.cssColorToHex(backgroundColor); // Convert CSS color to Jimp-compatible hex
+
+  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function(x, y, idx) {
+    const red = this.bitmap.data[idx + 0];
+    const green = this.bitmap.data[idx + 1];
+    const blue = this.bitmap.data[idx + 2];
+    const currentColor = Jimp.rgbaToInt(red, green, blue, 255);
+
+    if (currentColor === colorToRemove) {
+      this.bitmap.data[idx + 3] = 0; // Set alpha to 0 to make it transparent
+    }
+  });
+
+  await image.writeAsync(outputPath);
+}
+
 fileController.imageCompress = asyncHandler(async (req, res) => {
   try {
     const fileName = req.file?.filename;
@@ -216,5 +239,36 @@ fileController.imagesToPdf = asyncHandler(async (req, res) => {
     );
   }
 });
+
+fileController.removeBackground = asyncHandler(async (req, res) => {
+  try {
+    const inputFile = req.file?.path;
+    const fileName = path.basename(inputFile).split(".")[0];
+    const { backgroundColor } = req.body;
+    if (!inputFile || !backgroundColor) {
+      throw new ApiError(400, "file not found or background color not provided");
+    }
+    const outputFile = path.resolve(
+      `public/temp/backgroundRemoved-${fileName}.png`
+    );
+    await removeBackgroundColor(inputFile, outputFile, backgroundColor);
+    deleteFile(outputFile);
+
+    res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { fileUrl: getFileUrl(req, `${fileName}.png`, "backgroundRemoved") },
+          "Background removed successfully"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "something went wrong while removing background"
+    );
+  }
+})
 
 export default fileController;
